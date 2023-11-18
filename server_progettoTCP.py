@@ -3,17 +3,18 @@ import facilities as fa
 import threading 
 import socket
 import mysql.connector
+import time
+
+lock = threading.Lock()
 
 conn_sql = mysql.connector.connect(
         host="127.0.0.1",  # 127.0.0.1 per test a casa 127.0.0.1/phpmyadmin altrimenti 10.10.0.10
         user="davide_verdino",
         password="verdino1234",
         database="5ATepsit",
-        port=3306,
-        # voi qui mettete la porta 3306!! quella di default per mySQL, io ho dovuto mettere la 3307 perche la mia 3306 era gia occupata dal database SQL sul mio PC!
+        port=3306, # la porta di default è la 3306 ma comunque potete impostarne un'altra
     )
 
-comunicazioni = ["",""]
 PASSWORD = "CIAO"
 
 def gestisci_comunicazione(conn):
@@ -122,13 +123,15 @@ def db_set(d, conn):
         orario_lavoro = conn.recv(1024).decode()
         query = "INSERT INTO `zone_di_lavoro_davide_verdino` (`nome_zona`, `numero_clienti`, `id_dipendente`, `orario_lavoro`) VALUES ('{}','{}','{}','{}')".format(nome_zona, numero_clienti, id_dipendente, orario_lavoro)
 
-
-
+    time.sleep(0.025)
+    lock.acquire()
+    time.sleep(0.025)
     cur.execute(query)
     try:
         conn_sql.commit()
     except:
         conn_sql.rollback()
+    lock.release()
 
     return
 
@@ -137,7 +140,6 @@ def db_update(d, conn):
 
     cur = conn_sql.cursor()
 
-    #l=[]
 
 
     if d == "D":
@@ -150,8 +152,6 @@ def db_update(d, conn):
         query = "UPDATE dipendenti_davide_verdino SET {} = '{}' WHERE id = '{}'".format(attr, val, id)
 
 
-    
-
 
     elif d == "Z":
         conn.send("Inserisci l'id della zona di cui vuoi modificare gli attributi: ".encode())
@@ -161,16 +161,16 @@ def db_update(d, conn):
         conn.send("Inserisci il nuovo valore del attributo: ".encode())
         val = conn.recv(1024).decode()
         query = "UPDATE zone_di_lavoro_davide_verdino SET {} = '{}' WHERE id_zona = '{}'".format(attr, val, id)
-    
-    
-    
+
+    time.sleep(0.025)
+    lock.acquire()
+    time.sleep(0.025)
     cur.execute(query)
-    
     try:
         conn_sql.commit()
     except:
         conn_sql.rollback()
-
+    lock.release()
     return
 
 
@@ -192,22 +192,23 @@ def db_del(d, conn):
         query = "DELETE FROM zone_di_lavoro_davide_verdino WHERE id_zona = '{}'".format(id)
 
     
-    
+    time.sleep(0.025)
+    lock.acquire()
+    time.sleep(0.025)
     cur.execute(query)
-
     try:
         conn_sql.commit()
     except:
         conn_sql.rollback()
-
+    lock.release()
     return
 
 
 if __name__ == "__main__":
     print("server in ascolto: ")
     lock = threading.Lock()
-    HOST = '127.0.0.1'                 # Nome simbolico che rappresenta il nodo locale, ci va l'indirizzo IP
-    PORT = 50010            # Porta non privilegiata arbitraria
+    HOST = '127.0.0.1'
+    PORT = 50013            # Porta dinamica a piacere
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, PORT))
     s.listen(10)
@@ -215,12 +216,9 @@ if __name__ == "__main__":
     lista_connessioni = []
     i=0
 
-    #while True:
-    lista_connessioni.append( s.accept() ) #connessione = s.accept() 
-    print('Connected by', lista_connessioni[i][1]) # print(connessione[0])
-    thread.append(threading.Thread(target=gestisci_comunicazione, args = (lista_connessioni[i][0],) )) 
-    thread[i].start()
-    thread[i].join()
-        #i+=1
-
-    
+    while True:
+        lista_connessioni.append( s.accept() ) #connessione = s.accept()
+        print('Connected by', lista_connessioni[i][1]) # print(connessione[0])
+        thread.append(threading.Thread(target=gestisci_comunicazione, args = (lista_connessioni[i][0],) ))
+        thread[i].start()
+        i+=1
